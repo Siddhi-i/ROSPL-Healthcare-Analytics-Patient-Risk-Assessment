@@ -176,7 +176,7 @@ st.markdown("---")
 # --------------------------------------------------------------------------------
 # TABS
 # --------------------------------------------------------------------------------
-tab_age, tab_disease,tab_bmi,tab_bp, tab_gender, tab_risk,tab_data = st.tabs(
+tab_age, tab_disease, tab_bmi, tab_bp, tab_gender, tab_risk, tab_data, tab_quality = st.tabs(
     [
         "📊 Age Distribution",
         "🦠 Disease Distribution",
@@ -185,7 +185,9 @@ tab_age, tab_disease,tab_bmi,tab_bp, tab_gender, tab_risk,tab_data = st.tabs(
         "🚻 Gender Analysis",
         "🩺 Patient Risk Assessment",
         "📄 Raw Data",
+        "🔎 Data Quality",
     ]
+
 )
 
 # ---------------- AGE DISTRIBUTION ----------------
@@ -681,6 +683,154 @@ with tab_data:
         data=csv,
         file_name="filtered_patient_data.csv",
         mime="text/csv",
+    )
+
+
+
+# ---------------- DATA QUALITY CHECKER ----------------
+with tab_quality:
+    st.subheader("🔎 Patient Data Quality Checker")
+    st.write(
+        "Review missing values, duplicate records, and invalid "
+        "patient measurements in the loaded dataset."
+    )
+
+    quality_df = df.copy()
+
+    # Convert measurements to numeric values for validation
+    numeric_columns = [
+        "Age", "BMI", "Systolic_BP", "Diastolic_BP"
+    ]
+
+    for column in numeric_columns:
+        quality_df[column] = pd.to_numeric(
+            quality_df[column], errors="coerce"
+        )
+
+    # Missing values
+    missing_count = int(quality_df.isna().sum().sum())
+
+    # Data completeness percentage
+    total_cells = quality_df.shape[0] * quality_df.shape[1]
+
+    completeness = (
+        ((total_cells - missing_count) / total_cells) * 100
+        if total_cells > 0
+        else 0
+    )
+
+    st.metric("Data Completeness", f"{completeness:.2f}%")
+
+    # Duplicate complete rows
+    duplicate_rows = int(
+        quality_df.duplicated().sum()
+    )
+
+    # Duplicate patient IDs, if available
+    duplicate_ids = 0
+    if "PatientID" in quality_df.columns:
+        ids = quality_df["PatientID"].dropna()
+        duplicate_ids = int(ids.duplicated().sum())
+
+    # Invalid measurement checks
+    invalid_age = (
+        quality_df["Age"].notna()
+        & ~quality_df["Age"].between(0, 120)
+    )
+
+    invalid_bmi = (
+        quality_df["BMI"].notna()
+        & ~quality_df["BMI"].between(10, 80)
+    )
+
+    invalid_systolic = (
+        quality_df["Systolic_BP"].notna()
+        & ~quality_df["Systolic_BP"].between(1, 300)
+    )
+
+    invalid_diastolic = (
+        quality_df["Diastolic_BP"].notna()
+        & ~quality_df["Diastolic_BP"].between(1, 200)
+    )
+
+    invalid_bp_order = (
+        quality_df["Systolic_BP"].notna()
+        & quality_df["Diastolic_BP"].notna()
+        & (
+            quality_df["Systolic_BP"]
+            <= quality_df["Diastolic_BP"]
+        )
+    )
+
+    # Summary metrics
+    q1, q2, q3, q4 = st.columns(4)
+
+    q1.metric("Total Records", len(quality_df))
+    q2.metric("Missing Values", missing_count)
+    q3.metric("Duplicate Rows", duplicate_rows)
+    q4.metric("Duplicate Patient IDs", duplicate_ids)
+
+    st.markdown("---")
+    st.subheader("Measurement Validation")
+
+    checks = {
+        "Age outside 0–120": invalid_age,
+        "BMI outside 10–80": invalid_bmi,
+        "Systolic BP outside 1–300": invalid_systolic,
+        "Diastolic BP outside 1–200": invalid_diastolic,
+        "Systolic BP not greater than diastolic BP": invalid_bp_order,
+    }
+
+    check_results = pd.DataFrame([
+        {
+            "Validation Check": name,
+            "Affected Records": int(mask.sum()),
+            "Status": "Review needed" if mask.any() else "Passed",
+        }
+        for name, mask in checks.items()
+    ])
+
+    st.dataframe(
+        check_results,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.subheader("Missing Values by Column")
+
+    missing_by_column = (
+        quality_df.isna()
+        .sum()
+        .rename("Missing Values")
+        .reset_index()
+    )
+    missing_by_column.columns = ["Column", "Missing Values"]
+    missing_by_column = missing_by_column[
+        missing_by_column["Missing Values"] > 0
+    ]
+
+    if missing_by_column.empty:
+        st.success("No missing values found in the loaded dataset.")
+    else:
+        st.dataframe(
+            missing_by_column,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    # Download the quality summary
+    report_csv = check_results.to_csv(index=False).encode("utf-8")
+
+    st.download_button(
+        "⬇️ Download Data Quality Report",
+        data=report_csv,
+        file_name="patient_data_quality_report.csv",
+        mime="text/csv",
+    )
+
+    st.caption(
+        "Validation limits are project-defined checks, not medical "
+        "diagnostic thresholds. Review flagged records before use."
     )
 
 st.markdown("---")
