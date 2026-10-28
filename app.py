@@ -644,33 +644,64 @@ with st.expander("ℹ️ How is the risk score calculated?"):
             "💡 **Age:** Regular health monitoring is advisable for older adults."
         )
 
+
     # ---------------- RISK TABLE ----------------
     st.markdown("### 📋 Patient Risk Summary")
+    st.caption("Filter patients by their calculated risk category and export a report.")
 
-    display_columns = []
+    available_risk_levels = ["Low", "Moderate", "High"]
 
-    for col in [
-        "PatientID",
-        "Age",
-        "Gender",
-        "BMI",
-        "BMI_Category",
-        "Systolic_BP",
-        "Diastolic_BP",
-        "BP_Category",
-        "Disease",
-        "Risk_Score",
-        "Risk_Level",
-        "Risk_Factors",
-    ]:
-        if col in risk_df.columns:
-            display_columns.append(col)
-
-    st.dataframe(
-        risk_df[display_columns],
-        use_container_width=True,
-        hide_index=True,
+    selected_risk_levels = st.multiselect(
+        "Filter by Risk Level",
+        options=available_risk_levels,
+        default=available_risk_levels,
+        key="risk_report_filter",
     )
+
+    # Apply the selected risk categories to the report only
+    report_df = risk_df[
+        risk_df["Risk_Level"].isin(selected_risk_levels)
+    ].copy()
+
+    display_columns = [
+        col for col in [
+            "PatientID",
+            "Age",
+            "Gender",
+            "BMI",
+            "BMI_Category",
+            "Systolic_BP",
+            "Diastolic_BP",
+            "BP_Category",
+            "Disease",
+            "Risk_Score",
+            "Risk_Level",
+            "Risk_Factors",
+        ]
+        if col in report_df.columns
+    ]
+
+    st.metric("Patients in Report", len(report_df))
+
+    if report_df.empty:
+        st.info("No patients match the selected risk levels.")
+    else:
+        st.dataframe(
+            report_df[display_columns],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    report_csv = report_df[display_columns].to_csv(index=False).encode("utf-8")
+
+    st.download_button(
+        "⬇️ Download Patient Risk Report (CSV)",
+        data=report_csv,
+        file_name="patient_risk_report.csv",
+        mime="text/csv",
+        disabled=report_df.empty,
+    )
+
 # ---------------- RAW DATA ----------------
 with tab_data:
     st.subheader("Filtered Patient Data")
