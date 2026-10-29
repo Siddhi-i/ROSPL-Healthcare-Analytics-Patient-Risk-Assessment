@@ -176,7 +176,7 @@ st.markdown("---")
 # --------------------------------------------------------------------------------
 # TABS
 # --------------------------------------------------------------------------------
-tab_age, tab_disease,tab_bmi,tab_bp, tab_gender, tab_risk,tab_data = st.tabs(
+tab_age, tab_disease, tab_bmi, tab_bp, tab_gender, tab_risk, tab_data, tab_quality, tab_anomaly = st.tabs(
     [
         "📊 Age Distribution",
         "🦠 Disease Distribution",
