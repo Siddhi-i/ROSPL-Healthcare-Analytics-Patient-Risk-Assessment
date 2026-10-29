@@ -648,6 +648,7 @@ with st.expander("ℹ️ How is the risk score calculated?"):
             "💡 **Age:** Regular health monitoring is advisable for older adults."
         )
 
+
     # ---------------- RISK TABLE ----------------
     st.markdown("### 📋 Patient Risk Summary")
 
@@ -675,123 +676,6 @@ with st.expander("ℹ️ How is the risk score calculated?"):
         use_container_width=True,
         hide_index=True,
     )
-# ---------------- ANOMALY DETECTION ----------------
-with tab_anomaly:
-    st.subheader("🔍 Patient Anomaly Detection")
-    st.caption(
-        "Isolation Forest identifies unusual combinations of patient measurements "
-        "for review. It does not diagnose diseases."
-    )
-
-    from sklearn.ensemble import IsolationForest
-
-    features = ["Age", "BMI", "Systolic_BP", "Diastolic_BP"]
-    anomaly_df = filtered_df.copy()
-
-    # Convert measurements to numeric values; invalid entries become missing.
-    for col in features:
-        anomaly_df[col] = pd.to_numeric(anomaly_df[col], errors="coerce")
-
-    # Only analyze records with all required measurements available.
-    valid_df = anomaly_df.dropna(subset=features).copy()
-
-    if len(valid_df) < 5:
-        st.warning(
-            "At least 5 records with complete numeric measurements are required "
-            "for anomaly detection."
-        )
-    else:
-        contamination = st.slider(
-            "Expected proportion of unusual records",
-            min_value=0.01,
-            max_value=0.20,
-            value=0.05,
-            step=0.01,
-            help=(
-                "Controls the approximate proportion of records the model flags. "
-                "It is not a disease probability or measured disease rate."
-            ),
-        )
-
-        model = IsolationForest(
-            n_estimators=100,
-            contamination=contamination,
-            random_state=42,
-        )
-        predictions = model.fit_predict(valid_df[features])
-        valid_df["Anomaly_Status"] = [
-            "Unusual — Review" if prediction == -1 else "Normal"
-            for prediction in predictions
-        ]
-        valid_df["Anomaly_Score"] = model.decision_function(valid_df[features])
-
-        flagged_df = valid_df[
-            valid_df["Anomaly_Status"] == "Unusual — Review"
-        ].copy()
-
-        metric1, metric2, metric3 = st.columns(3)
-        metric1.metric("Records Analyzed", f"{len(valid_df):,}")
-        metric2.metric("Flagged Records", f"{len(flagged_df):,}")
-        metric3.metric(
-            "Flagged Percentage",
-            f"{len(flagged_df) / len(valid_df) * 100:.1f}%",
-        )
-
-        st.markdown("### 📊 Anomaly Visualization")
-        hover_columns = [
-            col for col in ["PatientID", "Age", "Diastolic_BP", "Disease"]
-            if col in valid_df.columns
-        ]
-        fig_anomaly = px.scatter(
-            valid_df,
-            x="BMI",
-            y="Systolic_BP",
-            color="Anomaly_Status",
-            hover_data=hover_columns,
-            title="BMI vs Systolic Blood Pressure",
-            color_discrete_map={
-                "Normal": PRIMARY_COLOR,
-                "Unusual — Review": ACCENT_COLOR,
-            },
-        )
-        st.plotly_chart(fig_anomaly, use_container_width=True)
-
-        st.markdown("### 🚩 Flagged Patient Records")
-        if flagged_df.empty:
-            st.success("No records were flagged in this run.")
-        else:
-            display_anomaly_cols = [
-                col for col in [
-                    "PatientID", "Age", "Gender", "BMI", "Systolic_BP",
-                    "Diastolic_BP", "Disease", "Anomaly_Status", "Anomaly_Score",
-                ]
-                if col in flagged_df.columns
-            ]
-            st.dataframe(
-                flagged_df[display_anomaly_cols],
-                use_container_width=True,
-                hide_index=True,
-            )
-            st.download_button(
-                "⬇️ Download Flagged Records",
-                data=flagged_df.to_csv(index=False).encode("utf-8"),
-                file_name="patient_anomalies.csv",
-                mime="text/csv",
-            )
-
-        st.info(
-            "Flagged records have unusual statistical patterns. This does not "
-            "necessarily mean the data is incorrect or that a patient is ill. "
-            "Review records before taking action."
-        )
-
-        excluded_count = len(anomaly_df) - len(valid_df)
-        if excluded_count:
-            st.warning(
-                f"{excluded_count} record(s) were excluded because one or more "
-                "measurements were missing or non-numeric."
-            )
-
 # ---------------- RAW DATA ----------------
 
 with tab_data:
